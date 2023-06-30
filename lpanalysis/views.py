@@ -8,8 +8,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 from LPheatmap import settings
+import matplotlib.colors as mcolors
+from collections import defaultdict
 
 
+
+class Top(TemplateView):
+    template_name = "lpanalysis/top.html"
 
 
 class Index(TemplateView):
@@ -20,71 +25,175 @@ class Index(TemplateView):
     
 
 
-    #attentionDataを主審するためのビュー
+    #attentionDataを受信するためのビュー
 @csrf_exempt
 def receive_attention_data(request):
             if request.method == 'POST':
-                data = json.loads(request.body)
-                for attention_position, stay_time in data.items():
-                    attention_data = AttentionData(attention_position= attention_position,stay_time = stay_time)
-                    attention_data.save()
+                new_data = json.loads(request.body)
 
+                
+                for position, time in new_data.items():                    
+                    attention_data = AttentionData.objects.filter(attention_position = position).first()
+                    if attention_data is not None:
+                        attention_data.stay_time = time
+                    else:
+                        attention_data = AttentionData(attention_position = position,stay_time = time)
+                    attention_data.save()
         
-                return JsonResponse(data)
+                return JsonResponse("ok")
             else:
                 return JsonResponse({"error": "Invalid request method"}, status=400)
 
-#scrollDataを主審するためのビュー
+#scrollDataを受信、保存するためのビュー
 @csrf_exempt
 def receive_scroll_data(request):
         if request.method == 'POST':
             data = json.loads(request.body)
+            
             for position, count in data.items():
-                scroll_data = ScrollData(max_scroll_position = position,max_scroll_count = count)
-                scroll_data.save()
+                scroll_data = ScrollData.objects.filter(max_scroll_position = position).first()
+                if scroll_data is not None:
+                    scroll_data.max_scroll_count = count
+                else:
+                    scroll_data =  ScrollData(max_scroll_position = position, max_scroll_count = count)
                 
-        
+                scroll_data.save()
        
             return JsonResponse({"message": "Data received successfully"})
         else:
             return JsonResponse({"error": "Invalid request method"}, status=400)
 
 
-#clickDataを主審するためのビュー
+#clickDataを受信、保存するためのビュー
 @csrf_exempt
 def receive_click_data(request):
     if request.method == 'POST':
         data = json.loads(request.body)
-        click_data_instances = []
-        for click_position, click_count in data.items():
-            x, y = map(int, click_position.split(','))
-            click_data = ClickData(click_position_x=x, click_position_y=y, click_count=click_count)
-            click_data_instances.append(click_data)
-        ClickData.objects.bulk_create(click_data_instances)
+        
+        for position, count in data.items():
+            x,y = map(int,position.split(","))
+            click_data = ClickData.objects.filter(click_position_x = x,click_position_y =y).first()
+            if click_data is not None:
+                click_data.click_count = count
+            else:
+                click_data = ClickData(click_position_x = x,click_position_y =y,click_count =count )
+            click_data.save()
+            
+           
         return JsonResponse({"message": "Data received successfully"})
     else:
         return JsonResponse({"error": "Invalid request method"}, status=400)
 
 
+#アテンションヒートマップを作成するビュー
 def heatmap_view(request):
-    data = AttentionData.objects.values_list('attention_position', 'stay_time')
-
+    attention_data = AttentionData.objects.all()
+    attention_dict = defaultdict(int)
     
-    stay_time_data = np.zeros(6001)
-    for pos, time in data:
-        stay_time_data[pos] = time
-    print(stay_time_data[0:5])
+    max_attention_position = max(record.attention_position for record in attention_data)
 
+    for record in attention_data:
+        interval = record.attention_position // 50
+        attention_dict[interval] += record.stay_time
 
-    stay_time_data_2d = np.tile(stay_time_data, (100, 1)).T  # 100は横軸の長さで、実際のウェブページの幅に合わせて変更する必要があります。
+    heatmap = np.zeros((max_attention_position+1, 1))
 
-    # ヒートマップの描画
-    plt.imshow(stay_time_data_2d, cmap='hot', aspect='auto')
+    for interval, time in attention_dict.items():
+        start = interval * 50
+        end = start + 50
+        heatmap[start:end, 0] = time
 
-    save_path = os.path.join(os.path.join(settings.BASE_DIR, "static"), 'attentionheatmap.png')
+    plt.figure(figsize=(5, 5))
+    
+    vmin = np.min(heatmap)
+    vmax = np.max(heatmap)
+    
+    plt.imshow(heatmap, cmap='Reds', interpolation='nearest', aspect='auto', vmin=vmin, vmax=vmax)
+    plt.colorbar(label='Stay Time')
+    plt.ylabel("Attention Position")
+    plt.xticks([])  
+
+    save_path = os.path.join(settings.BASE_DIR, "static", 'attentionheatmap.png')
+    plt.tight_layout()
     plt.savefig(save_path)
-   
-    
-    
+    plt.close()  
 
-    return render(request, 'lpanalysis/heatmap.html')
+    return render(request, 'lpanalysis/a-heatmap.html')
+
+
+
+#クリックヒートマップを作成するビュー
+def click_heatmap_view(request):
+    click_data = ClickData.objects.all()
+
+    click_dict = defaultdict(int)
+
+    max_click_position_x = max(record.click_position_x for record in click_data)
+    max_click_position_y = max(record.click_position_y for record in click_data)
+
+    for record in click_data:
+        interval_x = record.click_position_x // 50
+        interval_y = record.click_position_y // 50
+        click_dict[(interval_y, interval_x)] += record.click_count
+
+    heatmap = np.zeros((max_click_position_y+1, max_click_position_x+1))  # <- 修正された部分
+
+    for (interval_y, interval_x), count in click_dict.items():
+        start_x = interval_x * 50
+        end_x = start_x + 50
+        start_y = interval_y * 50
+        end_y = start_y + 50
+        heatmap[start_y:end_y, start_x:end_x] = count  # <- 修正された部分
+
+
+    plt.figure(figsize=(5, 5))
+    
+    vmin = np.min(heatmap)
+    vmax = np.max(heatmap)
+    
+    plt.imshow(heatmap, cmap='Reds', interpolation='nearest', aspect='auto', vmin=vmin, vmax=vmax)
+    plt.colorbar(label='Click Count')
+
+    save_path = os.path.join(settings.BASE_DIR, "static", 'clickheatmap.png')
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+
+    return render(request, 'lpanalysis/c-heatmap.html')
+
+
+#スクロールヒートマップを作成するビュー
+def scroll_heatmap_view(request):
+    
+    scroll_data = ScrollData.objects.all()
+    scroll_dict = defaultdict(int)
+    
+    max_scroll_position = max(record.max_scroll_position for record in scroll_data)
+
+    for record in scroll_data:
+        interval = record.max_scroll_position // 50
+        scroll_dict[interval] += record.max_scroll_count
+
+    heatmap = np.zeros((max_scroll_position+1, 1))
+
+    for interval, count in scroll_dict.items():
+        start = interval * 50
+        end = start + 50
+        heatmap[start:end, 0] = count
+
+    plt.figure(figsize=(5, 5))
+    
+    vmin = np.min(heatmap)
+    vmax = np.max(heatmap)
+    
+    plt.imshow(heatmap, cmap='Reds', interpolation='nearest', aspect='auto', vmin=vmin, vmax=vmax)
+    plt.colorbar(label='count')
+    plt.ylabel("max_scroll_position")
+    plt.xticks([])  
+
+    save_path = os.path.join(settings.BASE_DIR, "static", 'scrollheatmap.png')
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()  
+
+    return render(request, 'lpanalysis/s-heatmap.html')

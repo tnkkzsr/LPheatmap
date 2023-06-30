@@ -1,0 +1,33 @@
+{% load static %}
+
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LP分析</title>
+<meta name="keywords" content="">
+<meta name="description" content="">
+<link rel="icon" type="image/png" href="img/favicon.png">
+<link rel="stylesheet" media="all" href="{% static 'lpanalysis/css/style.css' %}" />
+<link rel="stylesheet" media="all" href="{% static 'lpanalysis/css/ress.min.css' %}" />
+<script src="{% static 'lpanalysys/js/jquery-3.6.0.min.js' %}"></script>
+<script src="{% static 'lpanalysis/js/style.js' %}"></script>
+	
+<!-- Favicon -->
+<link rel="icon" type="image/png" href="img/favicon.png">
+    
+</head>
+<body>
+<h1>LP分析ツール</h1>
+
+<h2><a href="{% url 'index' %}">分析するページ</a></h2>
+
+<h3><a href="{% url 'a-heatmap' %}">アテンションヒートマップ</a></h3>
+<h3><a href="{% url 's-heatmap' %}">スクロールヒートマップ</a></h3>
+<h3><a href="{% url 'c-heatmap' %}">クリックヒートマップ</a></h3>
+
+    
+    
+</body>
+</html>

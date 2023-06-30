@@ -1,10 +1,15 @@
 const csrftoken = "{{ csrf_token }}";
 
+
+
 let jsonString = localStorage.getItem('clickData');
 let clickData = jsonString ? JSON.parse(jsonString) : {};
 
 let attentionInterval = 1000; // 1秒ごとにチェック
 let rangeSize = 1; // ピクセルごとに区切る
+
+
+
 
 // ページロード時に既存のデータをローカルストレージから読み込む
 jsonString = localStorage.getItem('attentionData');
@@ -17,7 +22,7 @@ let maxScrollPosition = 0;
 
 // スクロールイベントのリスニング
 window.addEventListener('scroll', function() {
-    let scrollPosition = window.scrollY;
+    let scrollPosition = window.pageYOffset;
     if(scrollPosition > maxScrollPosition) {
         maxScrollPosition = scrollPosition;
         if(scrollData[scrollPosition]) {
@@ -31,7 +36,7 @@ window.addEventListener('scroll', function() {
 // クリックイベントのリスニング
 window.addEventListener('click', function(event) {
     // クリック位置を文字列で表現
-    let clickPosition = `${event.clientX},${event.clientY}`;
+    let clickPosition = `${event.pageX},${event.pageY}`;
 
     // クリック位置のデータを追加
     if(clickData[clickPosition]) {
@@ -43,7 +48,7 @@ window.addEventListener('click', function(event) {
 
 function increaseStayTime() {
     if (document.hasFocus()) {  // <- 追加：ウェブページがフォーカスされている時だけ滞在時間を増やす
-        let scrollPosition = Math.floor(window.scrollY / rangeSize) * rangeSize;
+        let scrollPosition = window.scrollY;
         if(attentionData[scrollPosition]) {
             attentionData[scrollPosition] += attentionInterval / 1000;
         } else {
