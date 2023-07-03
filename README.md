@@ -3,13 +3,18 @@
  
 ## 起動方法
  
-このGithubからクローンし、Dockerのコンテナを起動
+このGithubからクローンし、Dockerのコンテナを起動。
 ```bash
 git clone https://github.com/tnkkzsr/LPheatmap.git
 cd LPheatmap
 
 docker-compose up --build
 ```
+データベースをマイグレーション
+```bash
+docker-compose run web python3 manage.py migrate
+```
+
 そして以下のローカルホストにアクセス
 ```bash
 http://0.0.0.0:8000/
